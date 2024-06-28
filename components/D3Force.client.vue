@@ -1960,86 +1960,86 @@ const data = {
     }]
 };
 
-const color = d3.scaleOrdinal(d3.schemeCategory10);
-
-const links = data.links.map(d => ({...d}));
-const nodes = data.nodes.map(d => ({...d}));
-
-const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d => d.id))
-    .force("charge", d3.forceManyBody())
-    .force("x", d3.forceX())
-    .force("y", d3.forceY());
-
-const myLinks = ref([]);
-const myNodes = ref([]);
-const updateId = ref(0);
-
-myLinks.value = simulation.force('link').links();
-myNodes.value = simulation.nodes();
-
-simulation.on("tick", () => {
-    myLinks.value = simulation.force('link').links();
-    myNodes.value = simulation.nodes();
-    updateId.value = updateId.value === 0 ? 1 : 0;
-});
-
-function dragStarted(event) {
-    if (!event.active)
-        simulation.alphaTarget(0.3).restart();
-
-    event.subject.fx = event.subject.x;
-    event.subject.fy = event.subject.y;
-}
-
-function dragged(event) {
-    event.subject.fx = event.x;
-    event.subject.fy = event.y;
-}
-
-function dragEnded(event) {
-    if (!event.active)
-        simulation.alphaTarget(0);
-
-    event.subject.fx = null;
-    event.subject.fy = null;
-}
+const svgRef = ref(null);
 
 onUpdated(() => {
-    d3.selectAll('circle').data(nodes).call(
-        d3.drag()
-            .container('svg')
-            .on('start', dragStarted)
-            .on('drag', dragged)
-            .on('end', dragEnded)
-    );
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+    const links = data.links.map(d => ({...d}));
+    const nodes = data.nodes.map(d => ({...d}));
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id))
+        .force("charge", d3.forceManyBody())
+        .force("x", d3.forceX())
+        .force("y", d3.forceY());
+
+    const svg = d3.select(svgRef.value);
+
+    const link = svg.append("g")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0.6)
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("stroke-width", d => Math.sqrt(d.value));
+
+    const node = svg.append("g")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5)
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("r", 5)
+        .attr("fill", d => color(d.group));
+
+    node.call(d3.drag()
+        .on("start", dragStarted)
+        .on("drag", dragged)
+        .on("end", dragEnded));
+
+    simulation.on("tick", () => {
+        link
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        node
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+    });
+
+    function dragStarted(event) {
+        if (!event.active)
+            simulation.alphaTarget(0.3).restart();
+
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragEnded(event) {
+        if (!event.active)
+            simulation.alphaTarget(0);
+
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
 });
 </script>
 
 <template>
     <div>
-        <svg width="928"
+        <svg ref="svgRef"
+             width="928"
              height="680"
              viewBox="-464,-340,928,680"
-             class="max-w-full h-auto" :key="updateId">
-            <g stroke="#999" stroke-opacity="0.6">
-                <line v-for="link in myLinks"
-                      :key="link.index"
-                      :stroke-width="Math.sqrt(link.value)"
-                      :x1="link.source.x"
-                      :y1="link.source.y"
-                      :x2="link.target.x"
-                      :y2="link.target.y"></line>
-            </g>
-
-            <g stroke="#fff" stroke-width="1.5">
-                <circle v-for="node in myNodes"
-                        r="5"
-                        :fill="color(node.group)"
-                        :cx="node.x"
-                        :cy="node.y"></circle>
-            </g>
-        </svg>
+             class="max-w-full h-auto"></svg>
     </div>
 </template>
 
