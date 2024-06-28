@@ -1,29 +1,186 @@
 <script setup lang="ts">
-const modalShow = ref<boolean>(false);
+const sections = ref<any[]>([]);
+
+const createModalShow = ref<boolean>(false);
+
+const createSectionForm = ref();
+
+const nextSectionId = ref<number>(1);
+const nextActionId  = ref<number>(1);
+
+const createSectionState = ref({
+    id         : nextSectionId.value++,
+    title      : '',
+    description: '',
+    actions    : [{
+        id  : nextActionId.value++,
+        name: '',
+        type: ''
+    }]
+});
+
+watch(() => {
+    const last = createSectionState.value.actions.findLast(x => x)
+
+    if (!last)
+        return false;
+
+    return last.name || last.type ? last : false;
+}, (item) => {
+    if (!item)
+        return;
+
+    createSectionState.value.actions.push({
+        id  : nextActionId.value++,
+        name: '',
+        type: ''
+    });
+});
+
+function save() {
+    createSectionForm.value.clear();
+
+    sections.value.push(createSectionState.value);
+
+    createSectionState.value = {
+        id         : nextSectionId.value++,
+        title      : '',
+        description: '',
+        actions    : [{
+            id  : nextActionId.value++,
+            name: '',
+            type: ''
+        }]
+    };
+    createModalShow.value    = false;
+}
+
+function dropAction(action: any) {
+    createSectionState.value.actions =
+        createSectionState.value.actions.filter((_action: any) => action.id !== _action.id);
+}
+
+function dropSection(section: any) {
+    sections.value = sections.value.filter((_section: any) => section.id !== _section.id);
+}
+
+const sectionColumns = [{
+    key  : 'id',
+    label: '#'
+}, {
+    key  : 'title',
+    label: 'Title'
+}, {
+    key  : 'description',
+    label: 'Description'
+}, {
+    key  : 'actions',
+    label: 'Actions'
+}, {
+    key: '_actions'
+}];
+
+const sectionShown = ref<boolean>(false);
+
+const tabs = [{
+    slot: 'sections',
+    label: 'Sections'
+}, {
+    slot: 'graph',
+    label: 'Graph'
+}];
 </script>
 
 <template>
-  <div class="container mx-auto max-w-4xl py-10">
-      <UCard>
-          <template #header>
-              <h3 class="text-xl">Test interface</h3>
-          </template>
+    <div class="p-10">
+        <UTabs :items="tabs" :ui="{wrapper: 'relative space-y-5'}">
+            <template #sections>
+                <UCard :ui="{body: {padding: ''}}">
+                    <template #header>
+                        <h5 class="text-lg font-semibold">Sections</h5>
 
-          <UFormGroup label="Place your congratulations">
-              <UInput placeholder="Wow, it's work!"/>
-          </UFormGroup>
+                        <div class="mt-2.5 flex gap-2.5">
+                            <UInput icon="i-heroicons-magnifying-glass-16-solid" placeholder="Search..." class="flex-grow"/>
 
-          <UButton class="mt-5" @click="modalShow = true">Yay!</UButton>
-      </UCard>
+                            <UButton icon="i-heroicons-plus" @click="createModalShow = true">Create</UButton>
+                        </div>
+                    </template>
 
-      <UModal v-model="modalShow">
-          <UCard>
-              Wooow! Hooray!
+                    <UTable :columns="sectionColumns" :rows="sections" :ui="{th: {padding: 'md:px-7'}, td: {padding: 'md:px-7'}}">
+                        <template #actions-data="{row}">
+                            {{ row.actions.length }}
+                        </template>
 
-              <template #footer>
-                  <UButton @click="modalShow = false">OK</UButton>
-              </template>
-          </UCard>
-      </UModal>
-  </div>
+                        <template #_actions-data="{row}">
+                            <div class="flex justify-end gap-2.5">
+                                <UButton color="gray" square icon="i-heroicons-pencil"/>
+                                <UButton color="gray" square icon="i-heroicons-trash" @click="dropSection(row)"/>
+                            </div>
+                        </template>
+                    </UTable>
+                </UCard>
+            </template>
+
+            <template #graph>
+                <UCard>
+                    <template #header>
+                        <h5 class="text-lg font-semibold">Graph</h5>
+                    </template>
+
+                    <UButton>Test</UButton>
+                </UCard>
+            </template>
+        </UTabs>
+
+
+
+        <UModal v-model="createModalShow">
+            <UForm ref="createSectionForm" :state="createSectionState">
+                <UCard>
+                    <template #header>
+                        <div class="flex justify-between">
+                            <h5 class="font-semibold">Create section</h5>
+
+                            <UButton icon="i-heroicons-x-mark"
+                                     variant="link"
+                                     color="gray"
+                                     :padded="false"
+                                     @click="createModalShow = false"/>
+                        </div>
+                    </template>
+
+                    <div class="flex flex-col gap-2.5">
+                        <UFormGroup label="Title">
+                            <UInput icon="i-heroicons-pencil"
+                                    placeholder="Brilliant fox adventure"
+                                    v-model="createSectionState.title"/>
+                        </UFormGroup>
+
+                        <UFormGroup label="Description">
+                            <UTextarea placeholder="A long time ago..."
+                                       autoresize :maxrows="10"
+                                       v-model="createSectionState.description"/>
+                        </UFormGroup>
+
+                        <UFormGroup label="Actions">
+                            <div class="flex flex-col gap-2.5">
+                                <div v-for="action in createSectionState.actions" :key="action.id">
+                                    <Action :action="action" @clear="dropAction(action)"/>
+                                </div>
+                            </div>
+                        </UFormGroup>
+                    </div>
+
+                    <template #footer>
+                        <div class="flex justify-end gap-2.5">
+                            <UButton icon="i-heroicons-check" @click="save">Save</UButton>
+                            <UButton icon="i-heroicons-x-mark" color="gray" @click="createModalShow = false">
+                                Cancel
+                            </UButton>
+                        </div>
+                    </template>
+                </UCard>
+            </UForm>
+        </UModal>
+    </div>
 </template>
