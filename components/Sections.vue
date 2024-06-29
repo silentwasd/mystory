@@ -1,73 +1,80 @@
 <script setup lang="ts">
-const sections = ref<any[]>([]);
+import type Section from "~/types/Section";
+import SectionRepository from "~/repo/SectionRepository";
 
-const createModalShow = ref<boolean>(false);
+const repo  = new SectionRepository();
+const toast = useToast();
 
-const createSectionForm = ref();
+const {data: sections, refresh} = await repo.refList();
 
-const nextSectionId = ref<number>(1);
-const nextActionId  = ref<number>(1);
+const modalShow = ref<boolean>(false);
 
-const createSectionState = ref({
-    id         : nextSectionId.value++,
-    title      : '',
-    description: '',
-    actions    : [{
-        id  : nextActionId.value++,
-        name: '',
-        type: ''
-    }]
-});
+const selected = ref<Section | null>(null);
 
-watch(() => {
-    const last = createSectionState.value.actions.findLast(x => x)
-
-    if (!last)
-        return false;
-
-    return last.name || last.type ? last : false;
-}, (item) => {
-    if (!item)
-        return;
-
-    createSectionState.value.actions.push({
-        id  : nextActionId.value++,
-        name: '',
-        type: ''
-    });
-});
-
-function save() {
-    createSectionForm.value.clear();
-
-    sections.value.push({
-        ...createSectionState.value,
-        actions: createSectionState.value.actions.filter((action: any) => action.name && action.type)
-    });
-
-    createSectionState.value = {
-        id         : nextSectionId.value++,
+function createSection() {
+    selected.value = {
+        id         : 0,
         title      : '',
         description: '',
-        actions    : [{
-            id  : nextActionId.value++,
-            name: '',
-            type: ''
-        }]
+        actions    : []
     };
-    createModalShow.value    = false;
+
+    modalShow.value = true;
 }
 
-function dropAction(action: any) {
-    createSectionState.value.actions =
-        createSectionState.value.actions.filter((_action: any) => action.id !== _action.id);
+function editSection(section: Section) {
+    selected.value  = section;
+    modalShow.value = true;
 }
 
-function dropSection(section: any) {
-    sections.value = sections.value.filter((_section: any) => section.id !== _section.id);
+async function saveSection(section: Section) {
+    try {
+        if (section.id > 0)
+            await repo.update(section);
+        else
+            await repo.store(section);
+
+        await refresh();
+
+        toast.add({
+            title      : 'Ура!',
+            description: 'Секция успешно сохранена',
+            icon       : 'i-heroicons-bolt',
+            color      : 'green'
+        });
+    } catch {
+        toast.add({
+            title      : 'Упс!',
+            description: 'Не удалось сохранить секцию',
+            icon       : 'i-heroicons-bolt-slash',
+            color      : 'red'
+        });
+    }
 }
 
-const sectionColumns = [{
+async function dropSection(section: any) {
+    try {
+        await repo.destroy(section);
+
+        await refresh();
+
+        toast.add({
+            title      : 'Ура!',
+            description: 'Секция успешно удалена',
+            icon       : 'i-heroicons-bolt',
+            color      : 'green'
+        });
+    } catch {
+        toast.add({
+            title      : 'Упс!',
+            description: 'Не удалось удалить секцию',
+            icon       : 'i-heroicons-bolt-slash',
+            color      : 'red'
+        });
+    }
+}
+
+const columns = [{
     key  : 'id',
     label: '#'
 }, {
@@ -92,76 +99,60 @@ const sectionColumns = [{
             <div class="mt-2.5 flex gap-2.5">
                 <UInput icon="i-heroicons-magnifying-glass-16-solid" placeholder="Search..." class="flex-grow"/>
 
-                <UButton icon="i-heroicons-plus" @click="createModalShow = true">Create</UButton>
+                <UButton icon="i-heroicons-plus" @click="createSection">Create</UButton>
             </div>
         </template>
 
-        <UTable :columns="sectionColumns" :rows="sections" :ui="{th: {padding: 'md:px-7'}, td: {padding: 'md:px-7'}}">
+        <UTable :columns="columns" :rows="sections" :ui="{th: {padding: 'md:px-7'}, td: {padding: 'md:px-7'}}">
+            <template #description-data="{row}">
+                {{ wrap(row.description) }}
+            </template>
+
             <template #actions-data="{row}">
-                <div class="flex flex-col gap-2.5">
-                    <div v-for="action in row.actions" class="flex items-center gap-1.5">
-                        <UIcon name="i-heroicons-sparkles" class="text-lg"/>
-                        <span class="font-semibold">{{ action.name }}</span>
+                <div v-if="row.actions.length > 0" class="flex flex-col gap-2.5">
+                    <div v-for="action in row.actions" class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
+                            <UIcon name="i-heroicons-sparkles" class="text-lg"/>
+                            <span class="font-semibold">{{ action.name }}</span>
+                        </div>
+
+                        <div v-if="action.type === 'move-to'" class="flex items-center gap-2">
+                            <span>(</span>
+
+                            <div class="flex items-center gap-1.5">
+                                <UIcon name="i-heroicons-bars-3-bottom-left" class="text-lg"/>
+                                <span class="font-semibold">{{ row.title }}</span>
+                            </div>
+
+                            <UIcon name="i-heroicons-arrow-right"/>
+
+                            <div class="flex items-center gap-1.5">
+                                <UIcon name="i-heroicons-bars-3-bottom-left" class="text-lg"/>
+                                <span class="font-semibold">
+                                    {{ sections.find(section => section.id === action.move_to).title }}
+                                </span>
+                            </div>
+
+                            <span>)</span>
+                        </div>
                     </div>
                 </div>
+
+                <p v-else>Nothing</p>
             </template>
 
             <template #_actions-data="{row}">
                 <div class="flex justify-end gap-2.5">
-                    <UButton color="gray" square icon="i-heroicons-pencil"/>
+                    <UButton color="gray" square icon="i-heroicons-pencil" @click="editSection(row)"/>
                     <UButton color="gray" square icon="i-heroicons-trash" @click="dropSection(row)"/>
                 </div>
             </template>
         </UTable>
 
-        <UModal v-model="createModalShow">
-            <UForm ref="createSectionForm" :state="createSectionState">
-                <UCard>
-                    <template #header>
-                        <div class="flex justify-between">
-                            <h5 class="font-semibold">Create section</h5>
-
-                            <UButton icon="i-heroicons-x-mark"
-                                     variant="link"
-                                     color="gray"
-                                     :padded="false"
-                                     @click="createModalShow = false"/>
-                        </div>
-                    </template>
-
-                    <div class="flex flex-col gap-2.5">
-                        <UFormGroup label="Title">
-                            <UInput icon="i-heroicons-pencil"
-                                    placeholder="Brilliant fox adventure"
-                                    v-model="createSectionState.title"/>
-                        </UFormGroup>
-
-                        <UFormGroup label="Description">
-                            <UTextarea placeholder="A long time ago..."
-                                       autoresize :maxrows="10"
-                                       v-model="createSectionState.description"/>
-                        </UFormGroup>
-
-                        <UFormGroup label="Actions">
-                            <div class="flex flex-col gap-2.5">
-                                <div v-for="action in createSectionState.actions" :key="action.id">
-                                    <Action :action="action" @clear="dropAction(action)"/>
-                                </div>
-                            </div>
-                        </UFormGroup>
-                    </div>
-
-                    <template #footer>
-                        <div class="flex justify-end gap-2.5">
-                            <UButton icon="i-heroicons-check" @click="save">Save</UButton>
-                            <UButton icon="i-heroicons-x-mark" color="gray" @click="createModalShow = false">
-                                Cancel
-                            </UButton>
-                        </div>
-                    </template>
-                </UCard>
-            </UForm>
-        </UModal>
+        <ModalEditSection v-if="selected"
+                          v-model="modalShow"
+                          :section="selected"
+                          @save="saveSection"/>
     </UCard>
 </template>
 
