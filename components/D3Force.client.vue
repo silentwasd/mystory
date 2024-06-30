@@ -3,7 +3,15 @@ import * as d3 from "d3";
 
 const props = defineProps({
     nodes: Array,
-    links: Array
+    links: Array,
+    radius: {
+        type: Number,
+        default: 5
+    },
+    distance: {
+        type: Number,
+        default: 30
+    }
 });
 
 const svgRef = ref(null);
@@ -15,8 +23,13 @@ onUpdated(() => {
     const nodes = props.nodes.map(d => ({...d}));
 
     const simulation = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id))
-        .force("charge", d3.forceManyBody())
+        .force(
+            "link",
+            d3.forceLink(links)
+                .id(d => d.id)
+                .distance(props.distance)
+        )
+        .force("charge", d3.forceManyBody().strength(-2500))
         .force("x", d3.forceX())
         .force("y", d3.forceY());
 
@@ -30,14 +43,24 @@ onUpdated(() => {
         .join("line")
         .attr("stroke-width", d => Math.sqrt(d.value));
 
-    const node = svg.append("g")
+    const group = svg.append("g")
         .attr("stroke", "#fff")
         .attr("stroke-width", 1.5)
-        .selectAll("circle")
+        .selectAll("g")
         .data(nodes)
-        .join("circle")
-        .attr("r", 5)
+        .join("g");
+
+    const node = group.append("circle")
+        .attr("r", props.radius)
         .attr("fill", d => color(d.group));
+
+    const text = group.append("text")
+        .text(d => d.title)
+        .attr("text-anchor", "middle")
+        .attr("dy", 36)
+        .attr("stroke", "black")
+        .attr("stroke-width", 0.5)
+        .attr("class", "pointer-events-none");
 
     node.call(d3.drag()
         .on("start", dragStarted)
@@ -54,6 +77,10 @@ onUpdated(() => {
         node
             .attr("cx", d => d.x)
             .attr("cy", d => d.y);
+
+        text
+            .attr("x", d => d.x)
+            .attr("y", d => d.y);
     });
 
     function dragStarted(event) {

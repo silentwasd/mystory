@@ -1,5 +1,9 @@
 <script setup lang="ts">
-const nodes = [{
+import SectionRepository from "~/repo/SectionRepository";
+import type Section from "~/types/Section";
+import type Action from "~/types/Action";
+
+/*const nodes = [{
     "id": "Structural basis of PROTAC cooperative recognition for selective protein degradation.",
     "group": "Cited Works",
     "radius": 2,
@@ -1955,7 +1959,25 @@ const links = [{
     "source": "Optimisation of the Anti-Trypanosoma brucei Activity of the Opioid Agonist U50488",
     "target": "073-531-962-083-670",
     "value": 2
-}];
+}];*/
+
+const repo = new SectionRepository();
+
+const {data: sections} = await repo.refList();
+
+let actions: Action[] = [];
+sections.value.forEach((section: Section) => actions.push(
+    ...section.actions
+              .filter((action: Action) => action.type === 'move-to')
+              .map((action: Action) => ({...action, section: section}))
+));
+
+const nodes = ref(sections.value);
+const links = ref(actions.map((action: Action|any) => ({
+    source: action.section.id,
+    target: action.move_to,
+    value : 5
+})));
 </script>
 
 <template>
@@ -1965,7 +1987,7 @@ const links = [{
         </template>
 
         <div>
-            <D3Force :nodes="nodes" :links="links"/>
+            <D3Force :nodes="nodes" :links="links" :radius="20" :distance="200"/>
         </div>
     </UCard>
 </template>
